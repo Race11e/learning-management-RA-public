@@ -1,0 +1,247 @@
+﻿@page "/CourseDetailS/{StudentId:int}/{CourseId:int}"
+@rendermode InteractiveServer
+@using Library.learning_management_RA.Models
+@using Library.learning_management_RA.Services
+@inject CourseServiceProxy CourseService
+@inject StudentServiceProxy StudentService
+@inject NavigationManager Nav
+
+@if (course == null)
+{
+    <p>Course not found.</p>
+}
+else
+{
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ccc; padding-bottom: 10px;">
+        <div>
+            <h2>@course.Code - @course.Name</h2>
+            <h3 style="color: #28a745;">Current Grade: @CurrentLetterGrade (@CurrentGradePercent.ToString("0.0")%)</h3>
+        </div>
+        <div>
+            <button class="btn-secondary" @onclick="BackToDashboard">Dashboard</button>
+            <button class="btn-danger" @onclick="UnenrollSelf" style="background: #dc3545; color: white;">Drop Course</button>
+        </div>
+    </div>
+    
+    @if (course.Announcements.Any())
+    {
+        <div style="background: #fff3cd; padding: 10px; margin-top: 15px; border-left: 4px solid #ffc107;">
+            <strong>Latest Announcement:</strong> @course.Announcements.Last()
+        </div>
+    }
+    
+    <div class="tabs" style="margin: 20px 0;">
+        <button class="@GetTabClass("modules")" @onclick='() => activeTab = "modules"'>Modules</button>
+        <button class="@GetTabClass("assignments")" @onclick='() => activeTab = "assignments"'>Assignments</button>
+        <button class="@GetTabClass("grades")" @onclick='() => activeTab = "grades"'>Grades</button>
+        <button class="@GetTabClass("people")" @onclick='() => activeTab = "people"'>People</button>
+        <button class="@GetTabClass("schedule")" @onclick='() => activeTab = "schedule"'>Schedule</button>
+    </div>
+    
+    <div class="tab-content">
+        @if (activeTab == "modules")
+        {
+            <h4>Modules</h4>
+            @foreach (var mod in course.Modules)
+            {
+                <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #eee;">
+                    <h5>@mod.Name</h5>
+                    <ul>
+                        @foreach (var item in mod.Content)
+                        {
+                            <li>
+                                <strong>@item.Name</strong>
+                                @if (item is FileItem file) { <a href="@file.FilePath" target="_blank" style="margin-left: 10px;">[Open File]</a> }
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+        }
+        else if (activeTab == "assignments")
+        {
+            <h4>Assignments</h4>
+            @foreach (var assignment in course.Assignments)
+            {
+                var existingSub = assignment.Submissions.FirstOrDefault(s => s.StudentId == StudentId);
+                <div style="margin-bottom: 15px; padding: 15px; border: 1px solid #ccc; background: #f9f9f9;">
+                    <h5>@assignment.Name (Due: @assignment.DueDate.ToShortDateString()) - @assignment.AvailablePoints pts</h5>
+                    @if (assignment.IsQuiz)
+                    {
+                        <div style="padding: 10px; background: #e7f3ff; border-left: 4px solid #007bff;">
+                            <strong>Quiz Question:</strong>
+                            <p>@assignment.QuizQuestion</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <p>@assignment.Description</p>
+                    }
+                    
+                    @if (existingSub != null)
+                    {
+                        <div style="color: green;">✓ Submitted on @existingSub.SubmissionDate.ToShortDateString()</div>
+                        <p><strong>Your Text:</strong> @existingSub.Content</p>
+                        @if(!string.IsNullOrEmpty(existingSub.FilePath)) { <p><strong>Attached File:</strong> @existingSub.FilePath</p> }
+                    }
+                    else
+                    {
+                        <div style="margin-top: 10px;">
+                            <textarea @bind="submissionText" placeholder="Type your response here..." class="form-control" rows="3"></textarea>
+                            <input @bind="submissionFile" placeholder="File URL/Path (Simulation of upload)" class="form-control" style="margin-top: 5px;"/>
+                            <button class="btn-primary" @onclick="() => SubmitAssignment(assignment.Id)" style="margin-top: 5px;">Submit</button>
+                        </div>
+                    }
+                </div>
+            }
+        }
+        else if (activeTab == "grades")
+        {
+            <h4>Grades</h4>
+            <table class="table">
+                <thead><tr><th>Assignment</th><th>Score</th><th>Out Of</th><th>Feedback</th></tr></thead>
+                <tbody>
+                    @foreach (var assignment in course.Assignments)
+                    {
+                        var sub = assignment.Submissions.FirstOrDefault(s => s.StudentId == StudentId);
+                        <tr>
+                            <td>@assignment.Name</td>
+                            <td>@(sub?.Grade?.ToString() ?? "Ungraded")</td>
+                            <td>@assignment.AvailablePoints</td>
+                            <td>@sub?.Comment</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (activeTab == "people")
+        {
+            <h4>Class Roster</h4>
+            <ul>
+                @foreach (var student in course.Roster)
+                {
+                    <li>@student.Name @(student.Id == StudentId ? "(You)" : "")</li>
+                }
+            </ul>
+        }
+        else if (activeTab == "schedule")
+        {
+            <h4>Course Schedule</h4>
+            <ul>
+                @foreach (var assignment in course.Assignments.OrderBy(a => a.DueDate))
+                {
+                    <li><strong>@assignment.DueDate.ToShortDateString():</strong> @assignment.Name</li>
+                }
+            </ul>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int StudentId {get; set;}
+    [Parameter] public int CourseId {get; set;}
+    
+    private Course? course;
+    private string activeTab = "modules"; // default active tab
+    
+    private string submissionText = "";
+    private string submissionFile = "";
+
+    protected override void OnInitialized()
+    {
+        course = CourseService.Courses.FirstOrDefault(c => c.Id == CourseId);
+    }
+
+    private string GetTabClass(string tabName) => activeTab == tabName ? "btn btn-primary" : "btn btn-light";
+    
+    private void BackToDashboard() => Nav.NavigateTo($"/StudentMenu/{StudentId}");
+
+    private void UnenrollSelf()
+    {
+        if (course != null)
+        {
+            course.Roster.RemoveAll(s => s.Id == StudentId);
+            // remove all submissions
+            foreach (var assignment in course.Assignments)
+            {
+                assignment.Submissions.RemoveAll(s => s.StudentId == StudentId);
+            }
+            BackToDashboard();
+        }
+    }
+
+    private void SubmitAssignment(int assignmentId)
+    {
+        var assignment = course?.Assignments.FirstOrDefault(a => a.Id == assignmentId);
+        if (assignment != null && (!string.IsNullOrEmpty(submissionText) || !string.IsNullOrEmpty(submissionFile)))
+        {
+            assignment.Submissions.Add(new Submission
+            {
+                Id = assignment.Submissions.Any() ? assignment.Submissions.Max(s => s.Id) + 1 : 1,
+                StudentId = StudentId,
+                AssignmentId = assignmentId,
+                Content = submissionText,
+                FilePath =  submissionFile,
+                SubmissionDate =  DateTime.Now
+            });
+            submissionText = "";
+            submissionFile = "";
+        }
+    }
+
+    // calculates grade based on graded submissions
+    private double CurrentGradePercent
+    {
+        get
+        {
+            if (course == null || !course.Assignments.Any() || !course.AssignmentGroups.Any()) return 100.0;
+
+            double totalScore = 0;
+            double possibleWeights = 0;
+            
+            foreach (var group in course.AssignmentGroups)
+            {
+                var groupAssignments = course.Assignments.Where(a => a.AssignmentGroupId == group.Id).ToList();
+
+                if (groupAssignments.Any())
+                {
+                    double earned = 0;
+                    double possible = 0;
+
+                    foreach (var assignment in groupAssignments)
+                    {
+                        var sub = assignment.Submissions.FirstOrDefault(s => s.StudentId == StudentId);
+                        if (sub != null && sub.Grade.HasValue)
+                        {
+                            earned += sub.Grade.Value;
+                            possible += assignment.AvailablePoints;
+                        }
+                    }
+
+                    if (possible > 0)
+                    {
+                        double groupPercent = earned / possible;
+                        totalScore += groupPercent * group.Weight;
+                        possibleWeights += group.Weight;
+                    }
+                }
+            }
+
+            return possibleWeights == 0 ? 100.0 : (totalScore / possibleWeights) * 100.0;
+        }
+    }
+
+    private string CurrentLetterGrade
+    {
+        get
+        {
+            var p = CurrentGradePercent;
+            if (p >= course.GradeA) return "A";
+            if (p >= course.GradeB) return "B";
+            if (p >= course.GradeC) return "C";
+            if (p >= course.GradeD) return "D";
+            return "F";
+        }
+    }
+    
+}

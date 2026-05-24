@@ -1,0 +1,65 @@
+@page "/AddCourse"
+@rendermode InteractiveServer
+@using Library.learning_management_RA.Models
+@using Library.learning_management_RA.Services
+@inject CourseServiceProxy CourseService
+@inject NavigationManager Nav
+
+<div class="header-actions">
+    <h3>Add New Course</h3>
+    <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/ViewCoursesT")'>Back to Courses</button>
+</div>
+
+
+<div class="form-container" style="max-width: 500px; display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
+    <h4>Add New Course</h4>
+    <input @bind="newCourse.Name" placeholder="Course Name" class="form-control"/>
+    <input @bind="newCourse.Code" placeholder="Code" class="form-control"/>
+    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+        <select @bind="selectedSeason" class="form-control" style="width: auto;">
+            <option value="Spring">Spring</option>
+            <option value="Summer">Summer</option>
+            <option value="Fall">Fall</option>
+        </select>
+    
+        <input type="number" @bind="selectedYear" class="form-control" style="width: 100px;" />
+    </div>
+    <textarea @bind="newCourse.Description" placeholder="Description" class="form-control" rows="4"></textarea>
+    
+    <button class="btn-primary" @onclick="AddNewCourse">Add Course</button>
+    
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <p style="color: red;">@errorMessage</p>
+    }
+</div>
+
+@code {
+    private Course newCourse = new Course();
+    private string errorMessage = "";
+    
+    private string selectedSeason = "Fall";
+    private int selectedYear = DateTime.Now.Year;
+    
+    public void AddNewCourse()
+    {
+        if (string.IsNullOrWhiteSpace(newCourse.Name) || string.IsNullOrWhiteSpace(newCourse.Code) || string.IsNullOrWhiteSpace(newCourse.Description))
+        {
+            errorMessage = "Name, Code, Semester, and Description required.";
+            return;
+        }
+
+        string combinedSemester = $"{selectedSeason} {selectedYear}";
+
+        newCourse.Name = newCourse.Name.Trim();
+        newCourse.Code = newCourse.Code.Trim();
+        newCourse.Semester = combinedSemester;
+        newCourse.Description = newCourse.Description.Trim();
+        newCourse.Roster = new List<Student>();
+        newCourse.Modules = new List<Module>();
+        newCourse.Assignments = new List<Assignment>();
+        
+        CourseService.Add(newCourse);
+        Nav.NavigateTo("/ViewCoursesT");
+    }
+}

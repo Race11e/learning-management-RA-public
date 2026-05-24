@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "learning_management_RA", "learning_management_RA\learning_management_RA.csproj", "{4505458F-B5BC-49BD-94E6-A68885D585BC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Library.learning_management_RA", "Library.learning_management_RA\Library.learning_management_RA.csproj", "{32660B10-D978-4535-A286-E655BEEFE229}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4505458F-B5BC-49BD-94E6-A68885D585BC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4505458F-B5BC-49BD-94E6-A68885D585BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4505458F-B5BC-49BD-94E6-A68885D585BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4505458F-B5BC-49BD-94E6-A68885D585BC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{32660B10-D978-4535-A286-E655BEEFE229}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{32660B10-D978-4535-A286-E655BEEFE229}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{32660B10-D978-4535-A286-E655BEEFE229}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{32660B10-D978-4535-A286-E655BEEFE229}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

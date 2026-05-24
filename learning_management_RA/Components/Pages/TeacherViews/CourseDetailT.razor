@@ -1,0 +1,1121 @@
+@page "/CourseDetailT/{CourseId:int}"
+@rendermode InteractiveServer
+@using System.Reflection.Metadata.Ecma335
+@using Library.learning_management_RA.Models
+@using Library.learning_management_RA.Services
+@inject CourseServiceProxy CourseService
+@inject StudentServiceProxy StudentService
+@inject NavigationManager Nav
+@inject IJSRuntime JSRuntime
+
+@if (course == null)
+{
+    <p>Course not found :(</p>
+    <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/ViewCoursesT")'>Back</button>
+}
+else
+{
+    <div class="header-actions" style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>@course.Code - @course.Name (Section @course.Section)</h2>
+        <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/ViewCoursesT")'>Back to Courses</button>
+    </div>
+
+    <div class="tabs" style="margin-bottom: 20px; border-bottom: 2px solid #ccc; padding-bottom: 10px;">
+        <button class="@GetTabClass("info")" @onclick='() => activeTab = "info"'>Course Info</button>
+        <button class="@GetTabClass("roster")" @onclick='() => activeTab = "roster"'>Roster</button>
+        <button class="@GetTabClass("assignments")" @onclick='() => activeTab = "assignments"'>Assignments</button>
+        <button class="@GetTabClass("modules")" @onclick='() => activeTab = "modules"'>Modules</button>
+        <button class="@GetTabClass("announcements")" @onclick='() => activeTab = "announcements"'>Announcements</button>
+        <button class="@GetTabClass("grading")" @onclick='() => activeTab = "grading"'>Grading</button>
+        <button class="@GetTabClass("settings")" @onclick='() => activeTab = "settings"'>Settings</button>
+        </div>
+
+    <div class="tab-content">
+        
+        @if (activeTab == "info")
+        {
+            <h4>Course Information</h4>
+            <div class="form-group" style="max-width: 500px;">
+                <label>Description</label>
+                <textarea @bind="course.Description" class="form-control" rows="4"></textarea>
+                <button class="btn-primary" @onclick="SaveDescription" style="margin-top: 10px;">Update Description</button>
+            </div>
+            @if (showSuccess) { <span style="color: green; margin-left: 10px;">Saved!</span> }
+        }
+
+else if (activeTab == "roster")
+{
+    <h4>Manage Roster</h4>
+    <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: flex-end;">
+        <div>
+            <button class="btn-secondary" @onclick="ExportRoster">Export Roster (CSV)</button>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+            <label> Select Roster CSV</label><br/>
+            <InputFile OnChange="HandleFileSelected" />
+        </div>
+
+        @if (tempImportList.Any())
+        {
+            <div style="background: #e7f3ff; padding: 10px; border: 1px solid #007bff; border-radius: 4px;">
+                <label> @tempImportList.Count students found</label><br/>
+                <button class="btn-primary" @onclick="ConfirmImport">Confirm & Enroll Students</button>
+                <button class="btn-secondary" @onclick="CancelImport" style="background:#6c757d">Cancel</button>
+            </div>
+        }
+    </div>
+    
+    <div style="margin-bottom: 20px; padding: 15px; background: #e9ecef;">
+        <label><strong>Create & Enroll New Student:</strong></label><br/>
+        <input @bind="newStudentName" placeholder="Full Name" class="form-control" style="width: 200px; display: inline-block; margin-right: 5px;" />
+        <input @bind="newStudentCode" placeholder="Student Code (e.g., jbr29d)" class="form-control" style="width: 180px; display: inline-block; margin-right: 5px;" />
+        <select @bind="newStudentClass">
+            @foreach (var c in Enum.GetValues<Classification>())
+            {
+                <option value="@c">@c</option>
+            }
+        </select>
+        <button class="btn-primary" @onclick="CreateAndEnrollStudent">Create & Enroll</button>
+        @if (!string.IsNullOrEmpty(studentErrorMessage))
+        {
+            <div style="color: red; margin-top: 5px; font-size: 0.9em;">@studentErrorMessage</div>
+        }
+        </div>
+    <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa;">
+        <label>Enroll Existing Student:</label>
+        <select @bind="selectedStudentId" class="form-control" style="width: auto; display: inline-block;">
+            <option value="0">-- Select Student --</option>
+            @foreach (var s in AvailableStudents)
+            {
+                <option value="@s.Id">@s.Name (@s.Code)</option>
+            }
+        </select>
+        <button class="btn-primary" @onclick="EnrollStudent">Enroll</button>
+    </div>
+
+    <table class="table">
+        <thead><tr><th>ID</th><th>Name</th><th>Code</th><th>Action</th></tr></thead>
+        <tbody>
+            @foreach (var student in course.Roster)
+            {
+                <tr>
+                    <td>@student.Id</td>
+                    <td>@student.Name</td>
+                    <td>@student.Code</td>
+                    <td><button @onclick="() => UnenrollStudent(student.Id)" style="color: red; border:none; background:none; cursor:pointer;">Unenroll</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else if (activeTab == "assignments")
+{
+    <h4>Manage Assignments and Assignment Groups</h4>
+            
+    <div style="background: #f1f3f5; padding: 15px; margin-bottom: 20px;">
+        <h5>Assignment CSVs</h5>
+        <div style="margin-bottom: 20px; padding: 15px; background: #e7f3ff; border: 1px solid #007bff; border-radius: 4px;">
+            <div style="display: flex; gap: 20px; align-items: flex-end;">
+                <div>
+                    <button class="btn-secondary" @onclick="ExportAssignmentsCsv">Export Assignments (CSV)</button>
+                </div>
+            
+                <div style="padding-left: 20px; border-left: 2px solid #b8daff;">
+                    <label style="display: block; margin-bottom: 5px;">Import Assignment CSV</label>
+                    <InputFile OnChange="HandleAssignmentFileSelected" />
+                </div>
+            </div>
+
+            @if (tempImportAssignments.Any())
+            {
+                <div style="margin-top: 15px; padding: 10px; background: #fff; border: 1px dashed #007bff; border-radius: 4px;">
+                    <label> @tempImportAssignments.Count assignments ready to import</label><br/>
+                    <button class="btn-primary" style="margin-top: 5px;" @onclick="ConfirmAssignmentImport">Confirm & Import</button>
+                    <button class="btn-secondary" style="margin-top: 5px; background: #6c757d;" @onclick="CancelAssignmentImport">Cancel</button>
+                </div>
+            }
+        
+            @if (assignmentImportError != null)
+            {
+                <p style="color: red; margin-top: 10px; margin-bottom: 0;">@assignmentImportError</p>
+            }
+        </div>
+        <h5>Assignment Groups</h5>
+        @foreach(var group in course.AssignmentGroups)
+        {
+            <div style="display:flex; justify-content: space-between; margin-bottom: 5px;">
+                <span>@group.Name (@group.Weight%)</span>
+                <button @onclick="() => DeleteGroup(group.Id)" style="color:red; border:none; background:none; cursor:pointer;">Remove</button>
+            </div>
+        }
+        <div style="margin-top: 10px;">
+            <input @bind="newGroupName" placeholder="Group Name" class="form-control" style="width:150px; display:inline-block;" />
+            <input @bind="newGroupWeight" type="numFber" placeholder="Weight %" class="form-control" style="width:100px; display:inline-block;" />
+            <button class="btn-secondary" @onclick="AddGroup">Add Group</button>
+        </div>
+    </div>
+
+    <div style="background: #e9ecef; padding: 15px; margin-bottom: 20px;">
+        <h5>Import Assignment</h5>
+        <select @bind="importCourseId" class="form-control" style="width: auto; display: inline-block;">
+            <option value="0">-- Select Course --</option>
+            @foreach (var c in CourseService.Courses.Where(c => c.Id != CourseId))
+            {
+                <option value="@c.Id">@c.Code - @c.Name</option>
+            }
+        </select>
+        <select @bind="importAssignmentId" class="form-control" style="width: auto; display: inline-block;">
+            <option value="0">-- Select Assignment --</option>
+            @if(importCourseId > 0)
+            {
+                var targetCourse = CourseService.Courses.First(c => c.Id == importCourseId);
+                @foreach (var a in targetCourse.Assignments)
+                {
+                    <option value="@a.Id">@a.Name</option>
+                }
+            }
+        </select>
+        <button class="btn-primary" @onclick="CopyAssignment">Copy Assignment</button>
+    </div>
+
+    <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 5px;">
+        <h5>@(isEditingAssignment ? "Edit" : "New") Assignment / Quiz</h5>
+        
+        <div style="margin-bottom: 10px;">
+            <input type="checkbox" @bind="currAssignment.IsQuiz" id="isQuizCheck" />
+            <label for="isQuizCheck" style="font-weight: bold; margin-left: 5px;">This is a Quiz</label>
+        </div>
+        
+        <input @bind="currAssignment.Name" placeholder="Assignment Name" class="form-control" style="margin-bottom: 10px;" />
+        
+        <select @bind="currAssignment.AssignmentGroupId" class="form-control" style="margin-bottom: 10px;">
+            <option value="0">-- Select Assignment Group --</option>
+            @foreach(var group in course.AssignmentGroups)
+            {
+                <option value="@group.Id">@group.Name</option>
+            }
+        </select>
+        @if (currAssignment.IsQuiz)
+        {
+            <textarea @bind="currAssignment.QuizQuestion" placeholder="Enter the quiz question here..." class="form-control" rows="3" style="margin-bottom: 10px; border-left: 3px solid #007bff;"></textarea>
+        }
+        else
+        {
+            <textarea @bind="currAssignment.Description" placeholder="Assignment Description" class="form-control" rows="2" style="margin-bottom: 10px;"></textarea>
+        }
+        
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <div style="flex: 1;">
+                <label style="font-size: 0.9em; color: #666;">Available Points:</label>
+                <input type="number" @bind="currAssignment.AvailablePoints" class="form-control" />
+            </div>
+            <div style="flex: 1;">
+                <label style="font-size: 0.9em; color: #666;">Due Date:</label>
+                <input type="date" @bind="currAssignment.DueDate" class="form-control" />
+            </div>
+        </div>
+
+        <button class="btn-primary" @onclick="SaveAssignment">Save Assignment</button>
+        @if (isEditingAssignment)
+        {
+            <button class="btn-secondary" @onclick="CancelAssignmentEdit">Cancel</button>
+        }
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+        <h5>Existing Assignments</h5>
+        @if (!course.Assignments.Any())
+        {
+            <p>No assignments created yet.</p>
+        }
+        else
+        {
+            <table class="table" style="background: #fff; border: 1px solid #ddd;">
+                <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Group</th>
+                    <th>Points</th>
+                    <th>Due Date</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var a in course.Assignments)
+                {
+                    var groupName = course.AssignmentGroups.FirstOrDefault(g => g.Id == a.AssignmentGroupId)?.Name ?? "None";
+                    <tr>
+                        <td>@a.Name</td>
+                        <td>@groupName</td>
+                        <td>@a.AvailablePoints</td>
+                        <td>@a.DueDate.ToShortDateString()</td>
+                        <td>
+                            <button class="btn-secondary" style="padding: 4px 8px;" @onclick="() => EditAssignment(a)">Edit</button>
+                            <button class="btn-secondary" style="padding: 4px 8px; background: red; color: white;" @onclick="() => DeleteAssignment(a.Id)">Delete</button>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+        else if (activeTab == "modules")
+    {
+        <h4>Manage Modules</h4>
+        <div style="margin-bottom: 20px;">
+        <input @bind="newModuleName" placeholder="New Module Name" class="form-control" style="width: 250px; display: inline-block;" />
+        <button class="btn-primary" @onclick="AddModule">Add Module</button>
+        </div>
+
+        @foreach (var mod in course.Modules)
+        {
+            <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; background: #fff;">
+            
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                    @if (editingModuleId == mod.Id)
+                    {
+                        <div>
+                            <input @bind="mod.Name" class="form-control" style="width: 200px; display: inline-block;" />
+                            <button class="btn-primary" @onclick="SaveModule">Save</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <h5 style="margin: 0;">@mod.Name</h5>
+                        <div>
+                            <button class="btn-secondary" @onclick="() => EditModule(mod.Id)" style="padding: 4px 8px; font-size: 0.9em;">Edit Name</button>
+                            <button class="btn-danger" @onclick="() => DeleteModule(mod.Id)" style="padding: 4px 8px; font-size: 0.9em; background: #dc3545; color: white; border: none; border-radius: 4px;">Delete Module</button>
+                        </div>
+                    }
+                </div>
+            
+                <ul style="list-style-type: none; padding-left: 0; margin-top: 15px;">
+                    @foreach (var item in mod.Content)
+                    {
+                        <li style="margin-bottom: 10px; padding: 10px; background: #f8f9fa; border-left: 4px solid #007bff;">
+                        
+                            @if (editingContentId == item.Id)
+                            {
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <input @bind="editContentName" class="form-control" style="width: 200px;" placeholder="Item Name" />
+                                
+                                    @if (item is PageItem)
+                                    {
+                                        <input @bind="editContentValue" class="form-control" style="width: 250px;" placeholder="Page Content" />
+                                    }
+                                    else if (item is FileItem)
+                                    {
+                                        <input @bind="editContentValue" class="form-control" style="width: 250px;" placeholder="File Path/URL" />
+                                    }
+                                    else if (item is AssignmentItem)
+                                    {
+                                        <select @bind="editContentAssignmentId" class="form-control" style="width: 250px;">
+                                            <option value="0">-- Select Assignment --</option>
+                                            @foreach (var a in course.Assignments)
+                                            {
+                                                <option value="@a.Id">@a.Name</option>
+                                            }
+                                        </select>
+                                    }
+                                
+                                    <button class="btn-primary" @onclick="() => SaveContentEdit(mod)">Save</button>
+                                    <button class="btn-secondary" @onclick="CancelContentEdit">Cancel</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <strong>@item.Name</strong> 
+                                        <span style="color: #666; font-size: 0.9em; margin-left: 10px;">
+                                            @if (item is PageItem pageItem)
+                                            {
+                                                <span>(Page) - @pageItem.HtmlBody</span>
+                                            }
+                                            else if (item is FileItem file)
+                                            {
+                                                <span>(File) - <a href="@file.FilePath" target="_blank" style="color: #007bff; text-decoration: underline; font-weight: bold;">Open File ↗</a></span>
+                                            }
+                                            else if (item is AssignmentItem assignment)
+                                            {
+                                                var linkedAssigned = course.Assignments.FirstOrDefault(a => a.Id == assignment.AssignmentId);
+                                                <span>(Assignment) - @(linkedAssigned?.Name ?? "Deleted Assignment")</span>
+                                            }
+                                        </span>
+                                    </div>
+                                    <div>
+                                    <button class="btn-secondary" @onclick="() => EditContent(item)" style="padding: 2px 6px; font-size: 0.8em; margin-right: 5px;">Edit</button>
+                                    <button @onclick="() => DeleteModuleContent(mod, item.Id)" style="color: red; border: none; background: none; cursor: pointer;">Remove</button> 
+                                    </div>
+                            </div>
+                        }
+                    </li>
+                   }
+            </ul>
+
+            <div style="margin-top: 15px; padding: 15px; background: #f1f3f5; border-radius: 4px;">
+                <h6 style="margin-top: 0;">Add Content to @mod.Name</h6>
+                
+                <select @bind="selectedContentType[mod.Id]" class="form-control" style="width: auto; display: inline-block; margin-right: 5px;">
+                    <option value="Page">Page</option>
+                    <option value="File">File</option>
+                    <option value="Assignment">Assignment</option>
+                </select>
+
+                <input @bind="newContentName[mod.Id]" placeholder="Item Name (e.g. Week 1 Reading)" class="form-control" style="width: 200px; display: inline-block; margin-right: 5px;" />
+
+                @if (selectedContentType.ContainsKey(mod.Id))
+                {
+                    @if (selectedContentType[mod.Id] == "Page")
+                    {
+                        <input @bind="newContentValue[mod.Id]" placeholder="Page Text Content" class="form-control" style="width: 200px; display: inline-block; margin-right: 5px;" />
+                    }
+                    else if (selectedContentType[mod.Id] == "File")
+                    {
+                        <input @bind="newContentValue[mod.Id]" placeholder="File Path/URL" class="form-control" style="width: 200px; display: inline-block; margin-right: 5px;" />
+                    }
+                    else if (selectedContentType[mod.Id] == "Assignment")
+                    {
+                        <select @bind="newContentAssignmentId[mod.Id]" class="form-control" style="width: 200px; display: inline-block; margin-right: 5px;">
+                            <option value="0">-- Select Assignment --</option>
+                            @foreach (var a in course.Assignments)
+                            {
+                                <option value="@a.Id">@a.Name</option>
+                            }
+                        </select>
+                    }
+                }
+                
+                <button class="btn-primary" @onclick="() => AddModuleContent(mod)">Add to Module</button>
+            </div>
+        </div>
+    }
+}
+        else if (activeTab == "announcements")
+        {
+            <h4>Announcements</h4>
+            <div style="margin-bottom: 20px;">
+                <textarea @bind="newAnnouncement" placeholder="Draft new announcement..." class="form-control" rows="3"></textarea>
+                <button class="btn-primary" @onclick="PostAnnouncement" style="margin-top: 10px;">Post</button>
+            </div>
+
+            <ul>
+                @foreach (var ann in Enumerable.Reverse(course.Announcements))
+                {
+                    <li style="margin-bottom: 10px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107;">
+                        @ann
+                    </li>
+                }
+            </ul>
+        }
+        else if (activeTab == "grading")
+        {
+            <h4>Grade Submissions</h4>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h4>Grade Submissions</h4>
+                <button class="btn-secondary" @onclick="ExportGradebookCsv">Export Gradebook (CSV)</button>
+            </div>
+            <label>Select Assignment:</label>
+            <select @bind="selectedAssignmentIdToGrade" class="form-control" style="width: auto; margin-bottom: 20px;">
+                <option value="0">-- Choose Assignment --</option>
+                @foreach(var a in course.Assignments)
+                {
+                    <option value="@a.Id">@a.Name</option>
+                }
+            </select>
+
+            @if (selectedAssignmentIdToGrade != 0)
+            {
+                var assignment = course.Assignments.First(a => a.Id == selectedAssignmentIdToGrade);
+        
+                <table class="table">
+                    <thead>
+                    <tr><th>Student ID</th><th>Date</th><th>Content</th><th>File</th><th>Grade / @assignment.AvailablePoints</th><th>Comment</th><th>Action</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var sub in assignment.Submissions)
+                    {
+                        <tr>
+                            <td>@sub.StudentId</td>
+                            <td>@sub.SubmissionDate.ToShortDateString()</td>
+                            <td>@sub.Content</td>
+                            <td>
+                                @if(!string.IsNullOrEmpty(sub.FilePath))
+                                {
+                                    <a href="@sub.FilePath" target="_blank">View File</a>
+                                }
+                            </td>
+                            <td>
+                                <input @bind="sub.Grade" type="number" class="form-control" style="width: 80px;" />
+                            </td>
+                            <td>
+                                <input @bind="sub.Comment" placeholder="Feedback..." class="form-control" />
+                            </td>
+                            <td><button class="btn-primary" @onclick="() => showSuccess = true">Save</button></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+                @if (showSuccess) { <span style="color: green;">Grades Saved!</span> }
+            }
+        }
+        else if (activeTab == "settings")
+        {
+            <h4>Course Settings</h4>
+            <div style="background: #f8f9fa; padding: 15px; border: 1px solid #ddd; max-width: 400px;">
+                <h5>Letter Grade Minimum Thresholds (%)</h5>
+        
+                <div style="margin-bottom: 10px;">
+                    <label style="display:inline-block; width: 30px;">A</label>
+                    <input @bind="course.GradeA" type="number" step="0.1" class="form-control" style="width: 100px; display:inline-block;" />
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="display:inline-block; width: 30px;">B</label>
+                    <input @bind="course.GradeB" type="number" step="0.1" class="form-control" style="width: 100px; display:inline-block;" />
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="display:inline-block; width: 30px;">C</label>
+                    <input @bind="course.GradeC" type="number" step="0.1" class="form-control" style="width: 100px; display:inline-block;" />
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="display:inline-block; width: 30px;">D</label>
+                    <input @bind="course.GradeD" type="number" step="0.1" class="form-control" style="width: 100px; display:inline-block;" />
+                </div>
+        
+                <button class="btn-primary" @onclick="() => showSuccess = true">Save Settings</button>
+                @if (showSuccess) { <span style="color: green; margin-left: 10px;">Saved!</span> }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int CourseId { get; set; }
+
+    private Course? course;
+    private string activeTab = "info";
+    private bool showSuccess = false;
+
+    // state variables
+    private int selectedStudentId = 0;
+    
+    private int selectedAssignmentIdToGrade = 0;
+    private Assignment currAssignment = new Assignment() {DueDate = DateTime.Now.AddDays(7)};
+    private bool isEditingAssignment = false;
+    private int importCourseId = 0;
+    private int importAssignmentId = 0;
+    
+    private string newModuleName = "";
+    private int editingModuleId = 0;
+    private Dictionary<int, string> selectedContentType = new Dictionary<int, string>();
+    private Dictionary<int, string> newContentName = new Dictionary<int, string>();
+    private Dictionary<int, string> newContentValue = new Dictionary<int, string>();
+    private Dictionary<int, int> newContentAssignmentId = new Dictionary<int, int>();
+    
+    // Content states (edit)
+    private int editingContentId = 0;
+    private string editContentName = "";
+    private string editContentValue = "";
+    private int editContentAssignmentId = 0;
+    
+    private string newAnnouncement = "";
+    // group function vars
+    private string newGroupName = "";
+    private double newGroupWeight = 0;
+    
+    // CSV file vars
+    private List<Student> tempImportList = new List<Student>();
+    // For creating new student in course screen
+    private string newStudentName = "";
+    private Classification newStudentClass = Classification.Freshman;
+    private string newStudentCode = "";
+    private string studentErrorMessage = "";
+    // for importing CSVs
+    private List<Assignment> tempImportAssignments = new List<Assignment>();
+    private string? assignmentImportError;
+
+    
+    
+    protected override void OnInitialized()
+    {
+        course = CourseService.Courses.FirstOrDefault(c => c.Id == CourseId);
+
+        if (course != null && course.Modules != null)
+        {
+            foreach (var module in course.Modules)
+            {
+                InitializeModule(module.Id);
+            }
+        }
+    }
+
+
+    private string GetTabClass(string tabName) => activeTab == tabName ? "btn btn-primary" : "btn btn-light";
+
+    private async Task SaveDescription()
+    {
+        showSuccess = true;
+        await Task.Delay(2000);
+        showSuccess = false;
+    }
+
+    // Roster related functions ========================================================================================
+    private IEnumerable<Student> AvailableStudents =>
+        StudentService.Students.Where(s => course != null && !course.Roster.Any(r => r.Id == s.Id));
+
+    // func to enroll student in a course
+    private void EnrollStudent()
+    {
+        if (selectedStudentId != 0 && course != null)
+        {
+            var student = StudentService.Students.FirstOrDefault(s => s.Id == selectedStudentId);
+            if (student != null)
+            {
+                var copy = new Student
+                {
+                    Id = student.Id,
+                    Name = student.Name,
+                    Code = student.Code,
+                    Classification = student.Classification
+                };
+                course.Roster.Add(copy);
+                selectedStudentId = 0;
+            }
+        }
+    }
+
+    private void UnenrollStudent(int studentId)
+    {
+        course?.Roster.RemoveAll(s => s.Id == studentId);
+    }
+    
+    // Export roster as CSV
+    private async Task ExportRoster()
+    {
+        if (course == null || !course.Roster.Any()) return;
+        
+        var csvBuilder = new System.Text.StringBuilder();
+        csvBuilder.AppendLine("StudentId,Name,Code,Classification");
+
+        foreach (var student in course.Roster)
+        {
+            csvBuilder.AppendLine($"{student.Id},{student.Name},{student.Code},{student.Classification}");
+        }
+        
+        var fileBytes = System.Text.Encoding.UTF8.GetBytes(csvBuilder.ToString());
+        var fileName = $"{course.Code}_Roster.csv";
+        
+        await JSRuntime.InvokeVoidAsync("downloadFile", fileName, Convert.ToBase64String(fileBytes));
+    }
+    
+    // Read csv import file and find matching students in system
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        tempImportList.Clear();
+      
+
+        try
+        {
+            using var stream = e.File.OpenReadStream();
+            using var reader = new System.IO.StreamReader(stream);
+            var header = await reader.ReadLineAsync();
+
+            while (!reader.EndOfStream)
+            {
+                var line = await reader.ReadLineAsync();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                var values = line.Split(',');
+                if (values.Length >= 3)
+                {
+                    var code = values[2].Trim().Trim('"');
+
+                    var globalStudent = StudentService.Students.FirstOrDefault(s => s.Code.Equals(code, StringComparison.InvariantCultureIgnoreCase));
+
+                    if (globalStudent != null)
+                    {
+                        if (!course!.Roster.Any(s => s.Id == globalStudent.Id) &&
+                            !tempImportList.Any(t => t.Id == globalStudent.Id))
+                        {
+                            tempImportList.Add(globalStudent);
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            return;
+        }
+    }
+    
+    // Adds import to roster
+    private void ConfirmImport()
+    {
+        if (course != null && tempImportList.Any())
+        {
+            foreach (var student in tempImportList)
+            {
+                // Deep copy to roster
+                course.Roster.Add(new Student {
+                    Id = student.Id,
+                    Name = student.Name,
+                    Code = student.Code,
+                    Classification = student.Classification
+                });
+            }
+            tempImportList.Clear();
+            showSuccess = true;
+            StateHasChanged();
+        }
+    }
+
+    private void CancelImport()
+    {
+        tempImportList.Clear();
+        
+    }
+    
+    // Assignment related functions ====================================================================================
+    // saves assignment as new assignment or for saving edits
+    private void SaveAssignment()
+    {
+        if (string.IsNullOrWhiteSpace(currAssignment.Name)) return;
+
+        // If assignment is being edited
+        if (isEditingAssignment)
+        {
+            var existing = course?.Assignments.FirstOrDefault(a => a.Id == currAssignment.Id);
+            if (existing != null)
+            {
+                existing.Name = currAssignment.Name;
+                existing.Description = currAssignment.Description;
+                existing.AvailablePoints = currAssignment.AvailablePoints;
+                existing.DueDate = currAssignment.DueDate;
+            }
+            isEditingAssignment = false;
+        }
+        else
+        {
+            currAssignment.Id = (course?.Assignments.Any() == true) ? course.Assignments.Max(a => a.Id) + 1 : 1; 
+            course?.Assignments.Add(currAssignment);
+        }
+        currAssignment = new Assignment() {DueDate = DateTime.Now.AddDays(7)};
+    }
+
+    private void EditAssignment(Assignment assignment)
+    {
+        isEditingAssignment = true;
+        currAssignment = new Assignment
+        {
+            Id = assignment.Id,
+            Name = assignment.Name,
+            Description = assignment.Description,
+            AvailablePoints = assignment.AvailablePoints,
+            DueDate = assignment.DueDate
+        };
+    }
+
+    private void CancelAssignmentEdit()
+    {
+        isEditingAssignment = false;
+        currAssignment = new Assignment() {DueDate = DateTime.Now.AddDays(7)};
+    }
+
+    // when assignment is deleted, submissions are removed and module content with this assignment are removed
+    private void DeleteAssignment(int id)
+    {
+        if (course != null)
+        {
+            var assignmentToDelete = course.Assignments.FirstOrDefault(a => a.Id == id);
+            if (assignmentToDelete != null)
+            {
+                assignmentToDelete.Submissions?.Clear();
+                course.Assignments.Remove(assignmentToDelete);
+
+                foreach (var module in course.Modules)
+                {
+                    module.Content.RemoveAll(c => c is AssignmentItem ai && ai.AssignmentId == id);
+                }
+            }
+        }
+    }
+
+    // Copy Assignment
+    private void CopyAssignment()
+    {
+        var sourceCourse = CourseService.Courses.FirstOrDefault(c => c.Id == importCourseId);
+        var sourceAssignment = sourceCourse?.Assignments.FirstOrDefault(a => a.Id == importAssignmentId);
+
+        if (course != null && sourceAssignment != null)
+        {
+            course.Assignments.Add(new Assignment
+            {
+                Id = course.Assignments.Any() ? course.Assignments.Max(a => a.Id) + 1 : 1,
+                Name = sourceAssignment.Name,
+                Description = sourceAssignment.Description,
+                AvailablePoints = sourceAssignment.AvailablePoints,
+                DueDate = sourceAssignment.DueDate,
+                AssignmentGroupId = course.AssignmentGroups.FirstOrDefault()?.Id ?? 0,
+                Submissions = new List<Submission>()
+            });
+        }
+    }
+    
+    // Module related methods ==========================================================================================
+    
+    // Initializes module state to empty/defaults
+    private void InitializeModule(int moduleId)
+    {
+        selectedContentType[moduleId] = "Page";
+        newContentName[moduleId] = "";
+        newContentValue[moduleId] = "";
+        newContentAssignmentId[moduleId] = 0;
+    }
+    
+    // Adds module to module dictionary
+    private void AddModule()
+    {
+        if (course != null)
+        {
+            var module = new Module
+            {
+                Id = course.Modules.Any() ? course.Modules.Max(m => m.Id) + 1 : 1,
+                Name = newModuleName
+            };
+            course.Modules.Add(module);
+            InitializeModule(module.Id);
+            newModuleName = ""; // reset
+        }
+    }
+
+    private void EditModule(int moduleId) => editingModuleId = moduleId;
+    
+    private void SaveModule() => editingModuleId = 0;
+    
+    // Deletes module from course
+    private void DeleteModule(int moduleId)
+    {
+        course?.Modules.RemoveAll(m => m.Id == moduleId);
+        selectedContentType.Remove(moduleId);
+        newContentName.Remove(moduleId);
+        newContentValue.Remove(moduleId);
+        newContentAssignmentId.Remove(moduleId);
+    }
+
+    // Add content to module
+    private void AddModuleContent(Module module)
+    {
+        string type = selectedContentType[module.Id];
+        string name = newContentName[module.Id];
+        
+        if (string.IsNullOrWhiteSpace(name)) return;
+        
+        int newId = module.Content.Any() ? module.Content.Max(c => c.Id) + 1 : 1;
+
+        if (type == "Page")
+        {
+            module.Content.Add(new PageItem {Id = newId, Name = name, HtmlBody = newContentValue[module.Id]});
+        }
+        else if (type == "File")
+        {
+            module.Content.Add(new FileItem {Id = newId, Name = name, FilePath =  newContentValue[module.Id]});
+        }
+        else if (type == "Assignment")
+        {
+            int assignemntId = newContentAssignmentId[module.Id];
+            if (assignemntId > 0)
+            {
+                module.Content.Add(new AssignmentItem {Id = newId, Name = name, AssignmentId = assignemntId});
+            }
+        }
+        
+        // reset form
+        newContentName[module.Id] = "";
+        newContentValue[module.Id] = "";
+        newContentAssignmentId[module.Id] = 0;
+    }
+
+    // Remove content from module
+    private void DeleteModuleContent(Module module, int contentId)
+    {
+        module.Content.RemoveAll(c => c.Id == contentId);
+    }
+
+    // Content editing functions =====================================================================================
+    private void EditContent(ContentItem content)
+    {
+        editingContentId = content.Id;
+        editContentName = content.Name;
+
+        if (content is PageItem page)
+        {
+            editContentValue = page.HtmlBody;
+        }
+        else if (content is FileItem file)
+        {
+            editContentValue = file.FilePath;
+        }
+        else if (content is AssignmentItem assignment)
+        {
+            editContentAssignmentId = assignment.Id;
+        }
+    }
+
+    private void SaveContentEdit(Module module)
+    {
+        var item = module.Content.FirstOrDefault(c => c.Id == editingContentId);
+        if (item != null)
+        {
+            item.Name = editContentName;
+
+            if (item is PageItem page)
+            {
+                page.HtmlBody = editContentValue;
+            }
+            else if (item is FileItem file)
+            {
+                file.FilePath = editContentValue;
+            }
+            else if (item is AssignmentItem assignment)
+            {
+                assignment.AssignmentId = editContentAssignmentId;
+            }
+        }
+        editingContentId = 0;
+    }
+
+    private void CancelContentEdit()
+    {
+        editingContentId = 0;
+    }
+
+    
+    // Announcement related functions =================================================================================
+    private void PostAnnouncement()
+    {
+        if (!string.IsNullOrWhiteSpace(newAnnouncement) && course != null)
+        {
+            course.Announcements.Add($"[{DateTime.Now.ToShortDateString()}] {newAnnouncement}");
+            newAnnouncement = "";
+        }
+    }
+    
+    // Group related functions ========================================================================================
+    private void AddGroup()
+    {
+        if (course != null && !string.IsNullOrWhiteSpace(newGroupName))
+        {
+            course.AssignmentGroups.Add(new AssignmentGroup
+            {
+                Id = course.AssignmentGroups.Any() ? course.AssignmentGroups.Max(g => g.Id) + 1 : 1,
+                Name = newGroupName, 
+                Weight = newGroupWeight
+            });
+            newGroupName = "";
+            newGroupWeight = 0;
+        }
+    }
+    
+    private void DeleteGroup(int id) => course?.AssignmentGroups.RemoveAll(g => g.Id == id);
+    
+    // For creating new student; adds student to course and global student list
+    private void CreateAndEnrollStudent()
+    {
+        studentErrorMessage = "";
+        if (string.IsNullOrWhiteSpace(newStudentName) && string.IsNullOrWhiteSpace(newStudentCode))
+        {
+            studentErrorMessage = "Name and Code required.";
+            return;
+        }
+
+        if (course != null)
+        {
+            var existingStudent = StudentService.Students.FirstOrDefault(s => s.Code.Equals(newStudentCode.Trim(), StringComparison.InvariantCultureIgnoreCase));
+            if (existingStudent != null)
+            {
+                if (course.Roster.Any(r => r.Id == existingStudent.Id))
+                {
+                    studentErrorMessage = "A student with this  code already exists.";
+                }
+                else
+                {
+                    course.Roster.Add(existingStudent);
+                    ResetStudentForm();
+                }
+            }
+            else
+            {
+                int newId = StudentService.Students.Any() ? StudentService.Students.Max(g => g.Id) + 1 : 1;
+
+                var newStudent = new Student
+                {
+                    Id = newId,
+                    Name = newStudentName.Trim(),
+                    Classification = newStudentClass,
+                    Code = newStudentCode.Trim()
+                };
+                
+                StudentService.Students.Add(newStudent);
+                course.Roster.Add(newStudent);
+                ResetStudentForm();
+            }
+        }
+    }
+
+    private void ResetStudentForm()
+    {
+        newStudentName = "";
+        newStudentCode = "";
+        studentErrorMessage = "";
+    }
+
+    // Assignment CSV Export/Import ====================================================================
+    private async Task ExportAssignmentsCsv()
+    {
+        if (course == null || !course.Assignments.Any()) return;
+        var csvBuilder = new System.Text.StringBuilder();
+        csvBuilder.AppendLine("Name,Description,PointsAvailable,DueDate,GroupId,IsQuiz,QuizQuestion");
+        foreach (var a in course.Assignments)
+        {
+            var desc = a.Description?.Replace(',', ' ') ?? "";
+            var quest = a.QuizQuestion?.Replace(",", " ") ?? "";
+            
+            csvBuilder.AppendLine($"{a.Name},{desc},{a.AvailablePoints},{a.DueDate:yyyy-MM-dd},{a.AssignmentGroupId},{a.IsQuiz},{quest}");
+        }
+        var fileBytes = System.Text.Encoding.UTF8.GetBytes(csvBuilder.ToString());
+        var fileName = $"{course.Code}_Assignments.csv";
+        await JSRuntime.InvokeVoidAsync("downloadFile", fileName, Convert.ToBase64String(fileBytes));
+    }
+
+    // read assignment import csv file and hold in memory
+    private async Task HandleAssignmentFileSelected(InputFileChangeEventArgs e)
+    {
+        tempImportAssignments.Clear();
+        assignmentImportError = null;
+
+        try
+        {
+            using var stream = e.File.OpenReadStream();
+            using var reader = new System.IO.StreamReader(stream);
+            var header = await reader.ReadLineAsync();
+
+            while (!reader.EndOfStream)
+            {
+                var line = await reader.ReadLineAsync();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                var values = line.Split(',');
+                if (values.Length >= 7)
+                {
+                    int.TryParse(values[2], out int points);
+                    DateTime.TryParse(values[3], out DateTime dueDate);
+                    int.TryParse(values[4], out int groupId);
+                    bool.TryParse(values[5], out bool isQuiz);
+
+                    tempImportAssignments.Add(new Assignment
+                    {
+                        Name = values[0].Trim(),
+                        Description = values[1].Trim(),
+                        AvailablePoints = points,
+                        DueDate = dueDate == default ? DateTime.Now.AddDays(7) : dueDate,
+                        AssignmentGroupId = groupId,
+                        IsQuiz = isQuiz,
+                        QuizQuestion = values[6].Trim(),
+                        Submissions = new List<Submission>()
+                    });
+                }
+            }
+
+            if (!tempImportAssignments.Any())
+            {
+                assignmentImportError = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            assignmentImportError = ""; // Issue with error message on success as well
+        }
+    }
+
+    // Commit assignment cvs import to course
+    private void ConfirmAssignmentImport()
+    {
+        if (course != null && tempImportAssignments.Any())
+        {
+            int startingId = course.Assignments.Any() ? course.Assignments.Max(g => g.Id) + 1 : 1;
+
+            foreach (var newAssignment in tempImportAssignments)
+            {
+                newAssignment.Id = startingId++;
+                course.Assignments.Add(newAssignment);
+            }
+            tempImportAssignments.Clear();
+            showSuccess = true;
+        }
+    }
+    
+    // cancel import
+    private void CancelAssignmentImport()
+    {
+        tempImportAssignments.Clear();
+        assignmentImportError = null;
+    }
+    
+    // CSV export gradebook
+    private async Task ExportGradebookCsv()
+    {
+        if (course == null || !course.Roster.Any()) return;
+        
+        var csvBuilder = new System.Text.StringBuilder();
+
+        csvBuilder.Append("StudentId,Name,");
+        foreach (var a in course.Assignments)
+        {
+            csvBuilder.Append($"{a.Name} (/{a.AvailablePoints}),");
+        }
+        csvBuilder.Append("Current Grade %");
+
+        foreach (var student in course.Roster)
+        {
+            csvBuilder.Append($"{student.Id},{student.Name},");
+
+            double earned = 0;
+            double possible = 0;
+
+            foreach (var a in course.Assignments)
+            {
+                var sub = a.Submissions.FirstOrDefault(s => s.StudentId == student.Id);
+                string scoreString = sub?.Grade?.ToString() ?? "0";
+                csvBuilder.Append($"{scoreString},");
+
+                if (sub != null && sub.Grade.HasValue)
+                {
+                    earned += sub.Grade.Value;
+                    possible += a.AvailablePoints;
+                } 
+            }
+
+            double totalPercent = possible == 0 ? 100.0 : (earned / possible) * 100;
+            csvBuilder.AppendLine($"{totalPercent}:0.00");
+        }
+        var fileBytes = System.Text.Encoding.UTF8.GetBytes(csvBuilder.ToString());
+        var fileName = $"{course.Code}_Gradebook.csv";
+        await JSRuntime.InvokeVoidAsync("downloadFile", fileName, Convert.ToBase64String(fileBytes));
+    }
+
+    
+    
+}
+
+<style>
+    .btn { padding: 8px 16px; margin-right: 5px; border: none; cursor: pointer; border-radius: 4px; }
+    .btn-primary { background-color: #007bff; color: white; }
+    .btn-secondary { background-color: #6c757d; color: white; }
+    .btn-light { background-color: #f8f9fa; color: #333; border: 1px solid #ccc; }
+    .form-control { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    .table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    .table th, .table td { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; }
+</style>

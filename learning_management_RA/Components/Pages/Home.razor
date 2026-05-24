@@ -1,0 +1,8 @@
+﻿@page "/"
+@using learning_management_RA.Components.Pages
+@rendermode InteractiveServer
+@inject NavigationManager Nav
+<h3>Please select your user type:</h3>
+
+<button @onclick='() => Nav.NavigateTo("/StudentMenu")'>Student</button>
+<button @onclick='() => Nav.NavigateTo("/TeacherMenu")'>Teacher</button>

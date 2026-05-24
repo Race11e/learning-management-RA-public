@@ -1,0 +1,39 @@
+﻿@inherits LayoutComponentBase
+@inject NavigationManager Nav
+
+<div class="page-layout">
+    @if (currentUri != Nav.BaseUri)
+    {
+        <NavMenu />
+    }
+
+    <main class="main-content">
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    private string currentUri = "";
+
+    protected override void OnInitialized()
+    {
+        currentUri = Nav.Uri;
+        Nav.LocationChanged += HandleLocationChanged;
+    }
+
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUri = e.Location;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Nav.LocationChanged -= HandleLocationChanged;
+}
+
+<style>
+    .page-layout { display: flex; height: 100vh; }
+    .main-content { flex-grow: 1; overflow-y: auto; background: #f4f7f6; }
+    .content { padding: 2rem; }
+</style>

@@ -1,0 +1,14 @@
+@page "/TeacherMenu"
+@rendermode InteractiveServer
+@using Library.learning_management_RA.Models
+@using Library.learning_management_RA.Services
+@inject StudentServiceProxy StudentService
+@inject NavigationManager Nav
+
+
+<h3>Teacher Menu</h3>
+<button @onclick='() => Nav.NavigateTo("/EnrollStudents")'>Manage Students</button>
+<button @onclick='() => Nav.NavigateTo("/ViewCoursesT")'>View and Add Courses</button>
+
+
+  

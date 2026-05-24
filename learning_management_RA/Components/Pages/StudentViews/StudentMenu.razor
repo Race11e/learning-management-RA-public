@@ -1,0 +1,82 @@
+@page "/StudentMenu"
+@page "/StudentMenu/{StudentId:int}"
+@rendermode InteractiveServer
+@using Library.learning_management_RA.Models
+@using Library.learning_management_RA.Services
+@inject CourseServiceProxy CourseService
+@inject StudentServiceProxy StudentService
+@inject NavigationManager Nav
+@*Main Student Menu, lets user choose a student to log-in as*@
+
+<h3>Student Menu</h3>
+
+@if (StudentId == 0)
+{
+    <div class="form-group" style="max-width: 400px;">
+        <label>Select Student: </label>
+        <select @bind="selectedId" class="form-control">
+            <option value="0">Select Student</option>
+            @foreach (var student in StudentService.Students)
+            {
+                <option value="@student.Id">@student.Name (@student.Code)</option>
+            }
+        </select>
+        <button class="btn-primary" @onclick="LoginStudent" style="margin-top: 10px;">Enter Dashboard</button>
+    </div>
+}
+else
+{
+    var currStudent = StudentService.Students.FirstOrDefault(s => s.Id == StudentId);
+    if (currStudent == null)
+    {
+        <p>Student not found.</p>
+    }
+    else
+    {
+        <div style="display: flex; justify-content: space-between;">
+            <h4>Welcome, @currStudent.Name</h4>
+            <button class="btn-secondary" @onclick="Logout">Logout</button>
+        </div>
+        
+        <h5 style="margin-top: 20px;">Your Courses</h5>
+        var enrolledCourses = CourseService.Courses.Where(c => c.Roster.Any(r => r.Id == StudentId)).ToList();
+
+        if (!enrolledCourses.Any())
+        {
+            <p>You are not enrolled in any courses.</p>
+        }
+        else
+        {
+            <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                @foreach (var course in enrolledCourses)
+                {
+                    <div style="border: 1px solid #ccc; padding: 15px; border-radius: 5px; width: 250px;">
+                        <h5>@course.Code</h5>
+                        <p>@course.Name (Section @course.Section)</p>
+                        <button class="btn-primary" @onclick="() => GoToCourse(course.Id)">View Course</button>
+                    </div>
+                }
+            </div>
+        }
+    }
+}
+
+@code {
+    [Parameter] public int StudentId {get; set;}
+    private int selectedId = 0;
+
+    private void LoginStudent()
+    {
+        if (selectedId > 0) Nav.NavigateTo($"/StudentMenu/{selectedId}");
+    }
+
+    private void Logout()
+    {
+        Nav.NavigateTo($"/StudentMenu");
+    }
+
+    private void GoToCourse(int courseId)
+    {
+        Nav.NavigateTo($"/CourseDetailS/{StudentId}/{courseId}");
+    }
+}

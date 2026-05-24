@@ -1,0 +1,129 @@
+@page "/EnrollStudents"
+@rendermode InteractiveServer
+@using Library.learning_management_RA.Models
+@using Library.learning_management_RA.Services
+@inject StudentServiceProxy StudentService
+@inject CourseServiceProxy CourseService
+
+<div class="header-actions">
+    <h3>Student Management System</h3>
+</div>
+
+<div class="form-container">
+    <h4>@(isEditing ? "Edit Student" : "Enroll New Student")</h4>
+    <input @bind="currStudent.Name" placeholder="Name" />
+    <input @bind="currStudent.Code" placeholder="Code" />
+    <select @bind="currStudent.Classification">
+        @foreach (var c in Enum.GetValues<Classification>())
+        {
+            <option value="@c">@c</option>
+        }
+    </select>
+    
+    @if (isEditing)
+    {
+        <button @onclick="SaveEdit">Save Changes</button>
+        <button @onclick="CancelEdit">Cancel</button>
+ 
+    }
+    else
+    { 
+        <button @onclick="EnrollStudent">Enroll Student</button>
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <p style="color: red;">@errorMessage</p>
+        }
+    }
+    
+</div>
+
+<hr />
+
+<h4>Enrolled Students</h4>
+@if (StudentService.Students.Any())
+{
+    <table class="table">
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Code</th>
+            <th>Classification</th>
+            <th>Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var student in StudentService.Students)
+        {
+            <tr>
+                <td>@student.Id</td>
+                <td>@student.Name</td>
+                <td>@student.Code</td>
+                <td>@student.Classification</td>
+                <td>
+                    <button @onclick="() => EditStudent(student)">Edit</button>
+                    <button @onclick="() => DeleteStudent(student.Id)" style="color: red;">Remove</button>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>No students enrolled.</p>
+}
+
+
+
+@code {
+    private Student currStudent = new Student();
+    private bool isEditing = false;
+    private string errorMessage = "";
+    
+    private void EnrollStudent()
+    {
+        if (!string.IsNullOrWhiteSpace(currStudent.Name) && !string.IsNullOrWhiteSpace(currStudent.Code))
+        {
+            StudentService.Add(currStudent);
+            currStudent = new Student(); //resets form
+            errorMessage = "";
+        }
+        else
+        {
+            errorMessage = "Name and Code required.";
+        }
+    }
+
+    private void EditStudent(Student student)
+    {
+        isEditing = true;
+        //shallow copy so we can cancel changes
+        currStudent = new Student
+        {
+            Id = student.Id,
+            Name = student.Name,
+            Code = student.Code,
+            Classification = student.Classification
+        };
+    }
+
+    private void SaveEdit()
+    {
+        StudentService.Update(currStudent);
+        isEditing = false;
+        currStudent = new Student(); // reset form
+    }
+
+    private void CancelEdit()
+    {
+        isEditing = false;
+        currStudent = new Student(); // reset
+    }
+    
+    private void DeleteStudent(int studentId)
+    {
+        StudentService.Delete(studentId, CourseService);
+    }
+    
+}  
